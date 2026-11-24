@@ -257,12 +257,19 @@ export const SiteSettingsControl: React.FC<SiteSettingsControlProps> = ({
                   ? 'স্টাফ → সুপার এডমিন ডিরেক্ট মেসেজ'
                   : 'Staff-to-Super-Admin Direct Chat',
               ],
+              [
+                'showFloatingWhatsapp',
+                lang === 'bn'
+                  ? 'ভাসমান WhatsApp কল বাটন'
+                  : 'Floating WhatsApp Call Button',
+              ],
             ] as [keyof SiteSettings, string][]
           ).map(([key, label]) => {
             const active =
               key === 'enableStaffSuperAdminChat' ||
               key === 'showHeroCard' ||
-              key === 'enableDedicatedStore'
+              key === 'enableDedicatedStore' ||
+              key === 'showFloatingWhatsapp'
                 ? form[key] !== false
                 : Boolean(form[key]);
             return (
@@ -709,13 +716,18 @@ export const SiteSettingsControl: React.FC<SiteSettingsControlProps> = ({
         </div>
         <div>
           <label className="block text-xs font-semibold mb-1">
-            {lang === 'bn' ? 'এডমিন হোয়াটসঅ্যাপ নাম্বার' : 'Admin WhatsApp Number'}
+            {lang === 'bn'
+              ? 'এডমিন হোয়াটসঅ্যাপ নাম্বার (কল/চ্যাট বাটন)'
+              : 'Admin WhatsApp Number (Call/Chat Button)'}
+            {!isMainSuperAdmin && ' 🔒'}
           </label>
           <input
-            type="text"
+            type="tel"
+            disabled={!isMainSuperAdmin}
             value={form.adminWaNumber || ''}
             onChange={(e) => setForm({ ...form, adminWaNumber: e.target.value })}
-            className="w-full h-10 px-3 rounded-xl bg-slate-50 dark:bg-[#071312] border border-slate-200 dark:border-emerald-900 text-sm font-mono-num"
+            placeholder="01XXXXXXXXX / +8801XXXXXXXXX"
+            className="w-full h-10 px-3 rounded-xl bg-slate-50 dark:bg-[#071312] border border-slate-200 dark:border-emerald-900 text-sm font-mono-num disabled:opacity-55"
           />
         </div>
         <div>
@@ -779,14 +791,14 @@ export const SiteSettingsControl: React.FC<SiteSettingsControlProps> = ({
           )}
         </div>
 
-        {/* Footer visibility & Floating WhatsApp toggles */}
+        {/* Footer visibility & Floating WhatsApp ON/OFF + Number (Main Super Admin Only) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {(
             [
               ['showFooter', lang === 'bn' ? 'ওয়েবসাইট ফুটার চালু রাখুন' : 'Show Website Footer'],
               [
                 'showFloatingWhatsapp',
-                lang === 'bn' ? 'ডান নিচে ভাসমান WhatsApp বাটন' : 'Floating WhatsApp Button',
+                lang === 'bn' ? 'ভাসমান WhatsApp কল/চ্যাট বাটন' : 'Floating WhatsApp Button',
               ],
             ] as [keyof SiteSettings, string][]
           ).map(([key, label]) => {
@@ -797,19 +809,62 @@ export const SiteSettingsControl: React.FC<SiteSettingsControlProps> = ({
                 type="button"
                 disabled={!isMainSuperAdmin}
                 onClick={() => toggle(key)}
-                className={`min-h-[44px] px-3 py-2 rounded-xl border text-xs font-semibold text-left flex items-center justify-between gap-2 transition-colors disabled:opacity-55 ${
+                className={`min-h-[48px] px-3.5 py-2 rounded-xl border text-xs font-semibold text-left flex items-center justify-between gap-2 transition-colors disabled:opacity-55 ${
                   active
                     ? 'bg-emerald-50 border-emerald-600 text-emerald-900 dark:bg-emerald-950/60 dark:border-amber-400 dark:text-amber-300'
                     : 'bg-slate-50 border-slate-200 text-slate-500 dark:bg-[#071312] dark:border-emerald-950'
                 }`}
               >
                 <span className="truncate">{label}</span>
-                <span className="font-mono-num text-[11px] shrink-0">
-                  {active ? 'ON' : 'OFF'}
+                <span className="inline-flex items-center gap-2 shrink-0">
+                  <span
+                    className={`w-9 h-5 rounded-full p-0.5 flex items-center transition-colors ${
+                      active ? 'bg-emerald-600 dark:bg-amber-500 justify-end' : 'bg-slate-300 dark:bg-slate-700 justify-start'
+                    }`}
+                  >
+                    <span className="w-4 h-4 rounded-full bg-white shadow-xs" />
+                  </span>
+                  <span className="font-mono-num text-[11px] w-6 text-right">
+                    {active ? 'ON' : 'OFF'}
+                  </span>
                 </span>
               </button>
             );
           })}
+        </div>
+
+        {/* Dedicated WhatsApp Number Control (Main Super Admin Only) */}
+        <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+              {lang === 'bn'
+                ? 'WhatsApp কল বাটনের নাম্বার (শুধুমাত্র মেইন সুপার এডমিন)'
+                : 'Floating WhatsApp Number (Main Super Admin Only)'}
+              {!isMainSuperAdmin && ' 🔒'}
+            </label>
+            <span className="text-[11px] font-semibold text-emerald-700 dark:text-amber-300">
+              {form.showFloatingWhatsapp !== false
+                ? lang === 'bn'
+                  ? 'স্ট্যাটাস: চালু (ON)'
+                  : 'Status: ON'
+                : lang === 'bn'
+                ? 'স্ট্যাটাস: বন্ধ (OFF)'
+                : 'Status: OFF'}
+            </span>
+          </div>
+          <input
+            type="tel"
+            disabled={!isMainSuperAdmin}
+            value={form.adminWaNumber || ''}
+            onChange={(e) => setForm({ ...form, adminWaNumber: e.target.value })}
+            placeholder="01XXXXXXXXX বা +8801XXXXXXXXX"
+            className="w-full h-10 px-3 rounded-xl bg-white dark:bg-[#071312] border border-emerald-300 dark:border-emerald-800 text-sm font-mono-num disabled:opacity-55"
+          />
+          <p className="text-[11px] text-slate-600 dark:text-slate-400">
+            {lang === 'bn'
+              ? 'ইউজার চাইলে WhatsApp আইকনটি হাত দিয়ে টেনে (Drag করে) স্ক্রিনের যেকোনো জায়গায় রাখতে পারবে। সুইচ বন্ধ করলে পুরো সাইট থেকে বাটনটি হাইড হয়ে যাবে।'
+              : 'Users can freely drag and place the floating WhatsApp icon anywhere on screen. Switching OFF hides it across the entire site.'}
+          </p>
         </div>
 
         {/* Footer Logo preview & upload */}
@@ -1015,6 +1070,28 @@ export const SiteSettingsControl: React.FC<SiteSettingsControlProps> = ({
             />
           </div>
         </div>
+
+        {isMainSuperAdmin && (
+          <div className="pt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={handleSaveAll}
+              disabled={saving}
+              className="min-h-[42px] px-4 rounded-xl bg-emerald-800 hover:bg-emerald-900 dark:bg-amber-500 dark:hover:bg-amber-400 text-white dark:text-slate-950 font-semibold text-xs inline-flex items-center gap-2 disabled:opacity-60"
+            >
+              <Save className="w-4 h-4" />
+              <span>
+                {saving
+                  ? lang === 'bn'
+                    ? 'সেভ হচ্ছে...'
+                    : 'Saving...'
+                  : lang === 'bn'
+                  ? 'হোয়াটসঅ্যাপ ও ফুটার সেটিংস সেভ করুন'
+                  : 'Save WhatsApp & Footer Settings'}
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Categories & Banners & Coupons */}

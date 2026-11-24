@@ -188,12 +188,78 @@ interface FloatingWhatsappProps {
   onFallbackChat: () => void;
 }
 
+const WHATSAPP_POS_STORAGE_KEY = 'amader_whatsapp_pos';
+const WHATSAPP_BTN_SIZE = 48;
+const WHATSAPP_VIEWPORT_PAD = 8;
+
+function clampWhatsappPos(x: number, y: number): { x: number; y: number } {
+  if (typeof window === 'undefined') return { x: 16, y: 16 };
+  const maxX = Math.max(WHATSAPP_VIEWPORT_PAD, window.innerWidth - WHATSAPP_BTN_SIZE - WHATSAPP_VIEWPORT_PAD);
+  const maxY = Math.max(WHATSAPP_VIEWPORT_PAD, window.innerHeight - WHATSAPP_BTN_SIZE - WHATSAPP_VIEWPORT_PAD);
+  return {
+    x: Math.round(Math.min(Math.max(WHATSAPP_VIEWPORT_PAD, x), maxX)),
+    y: Math.round(Math.min(Math.max(WHATSAPP_VIEWPORT_PAD, y), maxY)),
+  };
+}
+
+function getInitialWhatsappPos(): { x: number; y: number } {
+  if (typeof window === 'undefined') return { x: 16, y: 16 };
+  try {
+    const saved = localStorage.getItem(WHATSAPP_POS_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved) as { x?: unknown; y?: unknown };
+      if (typeof parsed.x === 'number' && typeof parsed.y === 'number' && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
+        return clampWhatsappPos(parsed.x, parsed.y);
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
+  const isDesktop = window.innerWidth >= 1024;
+  return clampWhatsappPos(
+    window.innerWidth - WHATSAPP_BTN_SIZE - (isDesktop ? 24 : 14),
+    window.innerHeight - WHATSAPP_BTN_SIZE - (isDesktop ? 24 : 72)
+  );
+}
+
 export const FloatingWhatsappButton: React.FC<FloatingWhatsappProps> = ({
   siteSettings,
   lang,
   isKeyboardOpen = false,
   onFallbackChat,
 }) => {
+  const [pos, setPos] = React.useState<{ x: number; y: number }>(() => getInitialWhatsappPos());
+  const [isDragging, setIsDragging] = React.useState(false);
+  const posRef = React.useRef(pos);
+  posRef.current = pos;
+
+  const dragRef = React.useRef<{
+    active: boolean;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+    moved: boolean;
+  }>({
+    active: false,
+    pointerId: -1,
+    startX: 0,
+    startY: 0,
+    origX: 0,
+    origY: 0,
+    moved: false,
+  });
+  const suppressClickRef = React.useRef(false);
+
+  React.useEffect(() => {
+    const onResize = () => {
+      setPos((prev) => clampWhatsappPos(prev.x, prev.y));
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   if (isKeyboardOpen || siteSettings.showFloatingWhatsapp === false) return null;
 
   const waRaw = (
@@ -209,17 +275,111 @@ export const FloatingWhatsappButton: React.FC<FloatingWhatsappProps> = ({
       : `Hello, I need help with ${siteSettings.appName || 'Amader Market'}.`
   );
 
+  const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    suppressClickRef.current = false;
+    dragRef.current = {
+      active: true,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: posRef.current.x,
+      origY: posRef.current.y,
+      moved: false,
+    };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore if capture is unsupported
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    if (!drag.active || drag.pointerId !== e.pointerId) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(dx, dy) > 6) {
+      drag.moved = true;
+      setIsDragging(true);
+    }
+    if (drag.moved) {
+      const clamped = clampWhatsappPos(drag.origX + dx, drag.origY + dy);
+      posRef.current = clamped;
+      setPos(clamped);
+    }
+  };
+
+  const finishDrag = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    if (!drag.active || drag.pointerId !== e.pointerId) return;
+    if (drag.moved) {
+      suppressClickRef.current = true;
+      try {
+        localStorage.setItem(WHATSAPP_POS_STORAGE_KEY, JSON.stringify(posRef.current));
+      } catch {
+        // ignore storage quota errors
+      }
+    }
+    drag.active = false;
+    drag.pointerId = -1;
+    setIsDragging(false);
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // ignore release errors
+    }
+  };
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (waUrl) {
+      openExternalUrl(waUrl);
+    } else {
+      onFallbackChat();
+    }
+  };
+
   return (
     <button
       type="button"
       aria-label="WhatsApp Support"
-      title={lang === 'bn' ? 'সরাসরি WhatsApp সাপোর্ট' : 'WhatsApp Support'}
-      onClick={() => (waUrl ? openExternalUrl(waUrl) : onFallbackChat())}
-      className="fixed right-3.5 bottom-[72px] lg:bottom-6 lg:right-6 z-25 w-12 h-12 rounded-full bg-[#25D366] hover:bg-[#1ebe5d] text-white shadow-xl flex items-center justify-center ring-2 ring-white/80 dark:ring-black/30 transition-transform active:scale-95"
+      title={
+        lang === 'bn'
+          ? 'সরাসরি WhatsApp কল/চ্যাট (টেনে যেকোনো জায়গায় রাখুন)'
+          : 'WhatsApp Support (Drag to move anywhere)'
+      }
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={finishDrag}
+      onPointerCancel={finishDrag}
+      onClick={handleClick}
+      style={{
+        left: 0,
+        top: 0,
+        transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
+        touchAction: 'none',
+      }}
+      className={`group fixed z-[35] w-12 h-12 rounded-full bg-[#25D366] hover:bg-[#1ebe5d] text-white shadow-xl flex items-center justify-center ring-2 ring-white/85 dark:ring-black/35 select-none ${
+        isDragging ? 'cursor-grabbing shadow-2xl ring-4 ring-white' : 'cursor-grab'
+      }`}
     >
-      <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current" aria-hidden="true">
-        <path d="M12.031 2c-5.516 0-9.969 4.453-9.969 9.969 0 1.766.469 3.484 1.344 5l-1.406 5.156 5.281-1.391a9.92 9.92 0 0 0 4.75 1.203h.005c5.511 0 9.964-4.453 9.964-9.968S17.547 2 12.031 2zm5.802 14.125c-.245.688-1.438 1.312-1.99 1.391-.505.073-1.146.104-1.849-.12-.432-.14-.984-.323-1.693-.63-2.979-1.286-4.922-4.297-5.073-4.495-.146-.198-1.208-1.609-1.208-3.068 0-1.458.76-2.177 1.031-2.474.271-.297.594-.37.792-.37.198 0 .396.005.568.01.182.01.427-.068.667.51.245.594.839 2.047.911 2.193.073.146.12.318.026.516-.099.198-.146.318-.292.49-.146.172-.307.385-.438.516-.146.146-.297.302-.125.599.172.297.76 1.255 1.63 2.031 1.12 1 2.063 1.307 2.359 1.453.297.146.469.125.646-.073.172-.198.74-.865.938-1.161.198-.297.396-.245.667-.146.271.099 1.714.807 2.01.953.297.146.495.219.568.344.073.125.073.724-.172 1.411z" />
-      </svg>
+      <span
+        className={`flex items-center justify-center transition-transform ${
+          isDragging ? 'scale-110' : 'group-active:scale-95'
+        }`}
+      >
+        <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current" aria-hidden="true">
+          <path d="M12.031 2c-5.516 0-9.969 4.453-9.969 9.969 0 1.766.469 3.484 1.344 5l-1.406 5.156 5.281-1.391a9.92 9.92 0 0 0 4.75 1.203h.005c5.511 0 9.964-4.453 9.964-9.968S17.547 2 12.031 2zm5.802 14.125c-.245.688-1.438 1.312-1.99 1.391-.505.073-1.146.104-1.849-.12-.432-.14-.984-.323-1.693-.63-2.979-1.286-4.922-4.297-5.073-4.495-.146-.198-1.208-1.609-1.208-3.068 0-1.458.76-2.177 1.031-2.474.271-.297.594-.37.792-.37.198 0 .396.005.568.01.182.01.427-.068.667.51.245.594.839 2.047.911 2.193.073.146.12.318.026.516-.099.198-.146.318-.292.49-.146.172-.307.385-.438.516-.146.146-.297.302-.125.599.172.297.76 1.255 1.63 2.031 1.12 1 2.063 1.307 2.359 1.453.297.146.469.125.646-.073.172-.198.74-.865.938-1.161.198-.297.396-.245.667-.146.271.099 1.714.807 2.01.953.297.146.495.219.568.344.073.125.073.724-.172 1.411z" />
+        </svg>
+      </span>
     </button>
   );
 };
