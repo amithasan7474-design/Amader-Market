@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="bn">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Amader Market — আমাদের মার্কেট</title>
+    <meta
+      name="description"
+      content="Amader Market - Fast, offline-ready online marketplace & store control app."
+    />
+    <meta property="og:title" content="Amader Market — আমাদের মার্কেট" />
+    <meta
+      property="og:description"
+      content="Fast, offline-ready marketplace & complete store control app for Amader Market."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#043934" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AmaderMarket" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" href="/pwa-192x192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="antialiased selection:bg-emerald-600/20 selection:text-emerald-900 dark:selection:text-amber-300">
+    <script>
+      try {
+        if (localStorage.getItem('amader_user_theme') !== 'light') {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

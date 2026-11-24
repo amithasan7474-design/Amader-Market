@@ -1,0 +1,397 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: 'Hind Siliguri', system-ui, -apple-system, sans-serif;
+    --font-display: 'Outfit', 'Hind Siliguri', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-[#f6f8f7] text-slate-900 dark:bg-[#071312] dark:text-slate-100;
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+    transition: background-color 0.25s ease, color 0.2s ease;
+  }
+
+  /* =========================================================
+     New Extra Main Super Admin Default Theme Presets
+     (Transforms background, cards, header, nav, borders, and CTA accents)
+     ========================================================= */
+
+  /* 1. Royal Violet Pro (Dark) */
+  html[data-theme='cyber_violet'] body,
+  html[data-theme='cyber_violet'] .dark\:bg-\[\#071312\] {
+    background-color: #0d0718 !important;
+    color: #f3e8ff;
+  }
+  html[data-theme='cyber_violet'] .dark\:bg-\[\#0d1f1d\] {
+    background-color: #171029 !important;
+  }
+  html[data-theme='cyber_violet'] .dark\:bg-\[\#0b1b19\],
+  html[data-theme='cyber_violet'] .dark\:bg-\[\#0b1b19\]\/95 {
+    background-color: rgba(20, 12, 38, 0.96) !important;
+  }
+  html[data-theme='cyber_violet'] .dark\:border-emerald-950,
+  html[data-theme='cyber_violet'] .dark\:border-emerald-900 {
+    border-color: #2e1d52 !important;
+  }
+  html[data-theme='cyber_violet'] .dark\:bg-amber-500 {
+    background-color: #a855f7 !important;
+    color: #ffffff !important;
+  }
+  html[data-theme='cyber_violet'] .dark\:text-amber-400,
+  html[data-theme='cyber_violet'] .dark\:text-amber-300 {
+    color: #d8b4fe !important;
+  }
+  html[data-theme='cyber_violet'] .dark\:border-amber-400 {
+    border-color: #a855f7 !important;
+  }
+
+  /* 2. Carbon Gold Luxury (Dark) */
+  html[data-theme='carbon_amber'] body,
+  html[data-theme='carbon_amber'] .dark\:bg-\[\#071312\] {
+    background-color: #09090b !important;
+    color: #fafafa;
+  }
+  html[data-theme='carbon_amber'] .dark\:bg-\[\#0d1f1d\] {
+    background-color: #141418 !important;
+  }
+  html[data-theme='carbon_amber'] .dark\:bg-\[\#0b1b19\],
+  html[data-theme='carbon_amber'] .dark\:bg-\[\#0b1b19\]\/95 {
+    background-color: rgba(16, 16, 20, 0.96) !important;
+  }
+  html[data-theme='carbon_amber'] .dark\:border-emerald-950,
+  html[data-theme='carbon_amber'] .dark\:border-emerald-900 {
+    border-color: #27272f !important;
+  }
+  html[data-theme='carbon_amber'] .dark\:bg-amber-500 {
+    background-color: #eab308 !important;
+    color: #09090b !important;
+  }
+  html[data-theme='carbon_amber'] .dark\:text-amber-400,
+  html[data-theme='carbon_amber'] .dark\:text-amber-300 {
+    color: #facc15 !important;
+  }
+
+  /* 3. Nordic Cobalt Night (Dark) */
+  html[data-theme='nordic_slate'] body,
+  html[data-theme='nordic_slate'] .dark\:bg-\[\#071312\] {
+    background-color: #091122 !important;
+    color: #e2e8f0;
+  }
+  html[data-theme='nordic_slate'] .dark\:bg-\[\#0d1f1d\] {
+    background-color: #121d33 !important;
+  }
+  html[data-theme='nordic_slate'] .dark\:bg-\[\#0b1b19\],
+  html[data-theme='nordic_slate'] .dark\:bg-\[\#0b1b19\]\/95 {
+    background-color: rgba(14, 24, 43, 0.96) !important;
+  }
+  html[data-theme='nordic_slate'] .dark\:border-emerald-950,
+  html[data-theme='nordic_slate'] .dark\:border-emerald-900 {
+    border-color: #1e3252 !important;
+  }
+  html[data-theme='nordic_slate'] .dark\:bg-amber-500 {
+    background-color: #06b6d4 !important;
+    color: #04131c !important;
+  }
+  html[data-theme='nordic_slate'] .dark\:text-amber-400,
+  html[data-theme='nordic_slate'] .dark\:text-amber-300 {
+    color: #38bdf8 !important;
+  }
+  html[data-theme='nordic_slate'] .dark\:border-amber-400 {
+    border-color: #06b6d4 !important;
+  }
+
+  /* 4. Sunset Coral Light */
+  html[data-theme='sunset_coral'] body,
+  html[data-theme='sunset_coral'] .bg-\[\#f6f8f7\] {
+    background-color: #fff6f3 !important;
+    color: #2b140c;
+  }
+  html[data-theme='sunset_coral'] .bg-white {
+    background-color: #ffffff !important;
+  }
+  html[data-theme='sunset_coral'] .bg-emerald-800 {
+    background-color: #ea580c !important;
+  }
+  html[data-theme='sunset_coral'] .text-emerald-800,
+  html[data-theme='sunset_coral'] .text-emerald-900,
+  html[data-theme='sunset_coral'] .text-emerald-950,
+  html[data-theme='sunset_coral'] .text-emerald-700 {
+    color: #c2410c !important;
+  }
+  html[data-theme='sunset_coral'] .border-slate-200 {
+    border-color: #fed7aa !important;
+  }
+
+  /* 5. Modern Indigo Light */
+  html[data-theme='royal_indigo'] body,
+  html[data-theme='royal_indigo'] .bg-\[\#f6f8f7\] {
+    background-color: #eff4ff !important;
+    color: #111827;
+  }
+  html[data-theme='royal_indigo'] .bg-white {
+    background-color: #ffffff !important;
+  }
+  html[data-theme='royal_indigo'] .bg-emerald-800 {
+    background-color: #4338ca !important;
+  }
+  html[data-theme='royal_indigo'] .text-emerald-800,
+  html[data-theme='royal_indigo'] .text-emerald-900,
+  html[data-theme='royal_indigo'] .text-emerald-950,
+  html[data-theme='royal_indigo'] .text-emerald-700 {
+    color: #3730a3 !important;
+  }
+  html[data-theme='royal_indigo'] .border-slate-200 {
+    border-color: #c7d2fe !important;
+  }
+
+  /* 6. Botanical Jade Luxe Light */
+  html[data-theme='forest_jade'] body,
+  html[data-theme='forest_jade'] .bg-\[\#f6f8f7\] {
+    background-color: #edf6f0 !important;
+    color: #062e26;
+  }
+  html[data-theme='forest_jade'] .bg-white {
+    background-color: #fcfffd !important;
+  }
+  html[data-theme='forest_jade'] .bg-emerald-800 {
+    background-color: #0f766e !important;
+  }
+  html[data-theme='forest_jade'] .text-emerald-800,
+  html[data-theme='forest_jade'] .text-emerald-900,
+  html[data-theme='forest_jade'] .text-emerald-950,
+  html[data-theme='forest_jade'] .text-emerald-700 {
+    color: #0f766e !important;
+  }
+  html[data-theme='forest_jade'] .border-slate-200 {
+    border-color: #bae6d5 !important;
+  }
+
+  /* =========================================================
+     Theme-Matched Website Footer Surface (All 8 Themes)
+     ========================================================= */
+  :root,
+  html[data-theme='light'] {
+    --footer-bg: linear-gradient(180deg, #ffffff 0%, #edf4f0 100%);
+    --footer-border: #d1dfd7;
+    --footer-title: #064e3b;
+    --footer-subtitle: #047857;
+    --footer-text: #1e293b;
+    --footer-muted: #475569;
+    --footer-icon: #065f46;
+    --footer-icon-hover: #047857;
+    --footer-icon-hover-bg: rgba(6, 95, 70, 0.1);
+    --footer-divider: rgba(6, 95, 70, 0.16);
+    --footer-logo-ring: rgba(6, 95, 70, 0.24);
+    --footer-pill-bg: rgba(6, 95, 70, 0.08);
+    --footer-pill-border: rgba(6, 95, 70, 0.24);
+  }
+
+  html.dark,
+  html[data-theme='dark'] {
+    --footer-bg: linear-gradient(180deg, #0b1b19 0%, #050f0e 100%);
+    --footer-border: #064e3b;
+    --footer-title: #fcd34d;
+    --footer-subtitle: #a7f3d0;
+    --footer-text: #e2e8f0;
+    --footer-muted: #94a3b8;
+    --footer-icon: #f8fafc;
+    --footer-icon-hover: #fbbf24;
+    --footer-icon-hover-bg: rgba(251, 191, 36, 0.14);
+    --footer-divider: rgba(16, 185, 129, 0.22);
+    --footer-logo-ring: rgba(251, 191, 36, 0.36);
+    --footer-pill-bg: rgba(251, 191, 36, 0.12);
+    --footer-pill-border: rgba(251, 191, 36, 0.32);
+  }
+
+  html[data-theme='cyber_violet'] {
+    --footer-bg: linear-gradient(180deg, #171029 0%, #0b0514 100%);
+    --footer-border: #2e1d52;
+    --footer-title: #e9d5ff;
+    --footer-subtitle: #c084fc;
+    --footer-text: #f3e8ff;
+    --footer-muted: #c4b5fd;
+    --footer-icon: #f3e8ff;
+    --footer-icon-hover: #c084fc;
+    --footer-icon-hover-bg: rgba(168, 85, 247, 0.2);
+    --footer-divider: rgba(168, 85, 247, 0.26);
+    --footer-logo-ring: rgba(168, 85, 247, 0.45);
+    --footer-pill-bg: rgba(168, 85, 247, 0.16);
+    --footer-pill-border: rgba(168, 85, 247, 0.38);
+  }
+
+  html[data-theme='carbon_amber'] {
+    --footer-bg: linear-gradient(180deg, #141418 0%, #070709 100%);
+    --footer-border: #27272f;
+    --footer-title: #facc15;
+    --footer-subtitle: #fde047;
+    --footer-text: #fafafa;
+    --footer-muted: #a1a1aa;
+    --footer-icon: #fafafa;
+    --footer-icon-hover: #facc15;
+    --footer-icon-hover-bg: rgba(234, 179, 8, 0.18);
+    --footer-divider: rgba(250, 204, 21, 0.2);
+    --footer-logo-ring: rgba(234, 179, 8, 0.45);
+    --footer-pill-bg: rgba(234, 179, 8, 0.14);
+    --footer-pill-border: rgba(234, 179, 8, 0.35);
+  }
+
+  html[data-theme='nordic_slate'] {
+    --footer-bg: linear-gradient(180deg, #121d33 0%, #070e1d 100%);
+    --footer-border: #1e3252;
+    --footer-title: #7dd3fc;
+    --footer-subtitle: #38bdf8;
+    --footer-text: #e2e8f0;
+    --footer-muted: #94a3b8;
+    --footer-icon: #f1f5f9;
+    --footer-icon-hover: #38bdf8;
+    --footer-icon-hover-bg: rgba(6, 182, 212, 0.18);
+    --footer-divider: rgba(56, 189, 248, 0.22);
+    --footer-logo-ring: rgba(6, 182, 212, 0.42);
+    --footer-pill-bg: rgba(6, 182, 212, 0.14);
+    --footer-pill-border: rgba(6, 182, 212, 0.35);
+  }
+
+  html[data-theme='sunset_coral'] {
+    --footer-bg: linear-gradient(180deg, #ffffff 0%, #ffede4 100%);
+    --footer-border: #fed7aa;
+    --footer-title: #9a3412;
+    --footer-subtitle: #ea580c;
+    --footer-text: #431407;
+    --footer-muted: #7c2d12;
+    --footer-icon: #c2410c;
+    --footer-icon-hover: #9a3412;
+    --footer-icon-hover-bg: rgba(234, 88, 12, 0.12);
+    --footer-divider: rgba(234, 88, 12, 0.2);
+    --footer-logo-ring: rgba(234, 88, 12, 0.28);
+    --footer-pill-bg: rgba(234, 88, 12, 0.1);
+    --footer-pill-border: rgba(234, 88, 12, 0.28);
+  }
+
+  html[data-theme='royal_indigo'] {
+    --footer-bg: linear-gradient(180deg, #ffffff 0%, #e4ecff 100%);
+    --footer-border: #c7d2fe;
+    --footer-title: #312e81;
+    --footer-subtitle: #4338ca;
+    --footer-text: #1e1b4b;
+    --footer-muted: #4f46e5;
+    --footer-icon: #3730a3;
+    --footer-icon-hover: #312e81;
+    --footer-icon-hover-bg: rgba(67, 56, 202, 0.12);
+    --footer-divider: rgba(67, 56, 202, 0.18);
+    --footer-logo-ring: rgba(67, 56, 202, 0.28);
+    --footer-pill-bg: rgba(67, 56, 202, 0.1);
+    --footer-pill-border: rgba(67, 56, 202, 0.28);
+  }
+
+  html[data-theme='forest_jade'] {
+    --footer-bg: linear-gradient(180deg, #fcfffd 0%, #def2e8 100%);
+    --footer-border: #bae6d5;
+    --footer-title: #064e3b;
+    --footer-subtitle: #0f766e;
+    --footer-text: #062e26;
+    --footer-muted: #0f766e;
+    --footer-icon: #0f766e;
+    --footer-icon-hover: #064e3b;
+    --footer-icon-hover-bg: rgba(15, 118, 110, 0.12);
+    --footer-divider: rgba(15, 118, 110, 0.2);
+    --footer-logo-ring: rgba(15, 118, 110, 0.28);
+    --footer-pill-bg: rgba(15, 118, 110, 0.1);
+    --footer-pill-border: rgba(15, 118, 110, 0.28);
+  }
+
+  .amader-site-footer {
+    background: var(--footer-bg);
+    color: var(--footer-text);
+    border-top: 1px solid var(--footer-border);
+  }
+  .amader-site-footer-logo-wrap {
+    border: 2px solid var(--footer-logo-ring);
+    background: #ffffff;
+  }
+  .amader-site-footer-title {
+    color: var(--footer-title);
+  }
+  .amader-site-footer-subtitle {
+    color: var(--footer-subtitle);
+  }
+  .amader-site-footer-desc {
+    color: var(--footer-text);
+  }
+  .amader-site-footer-muted {
+    color: var(--footer-muted);
+  }
+  .amader-site-footer-divider {
+    border-color: var(--footer-divider);
+  }
+  .amader-site-footer-icon {
+    color: var(--footer-icon);
+  }
+  .amader-site-footer-icon:hover {
+    color: var(--footer-icon-hover);
+    background-color: var(--footer-icon-hover-bg);
+  }
+  .amader-site-footer-pill {
+    background-color: var(--footer-pill-bg);
+    border: 1px solid var(--footer-pill-border);
+    color: var(--footer-title);
+  }
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom subtle scrollbars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes ticker-marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: ticker-marquee 28s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Safe area padding for iOS/Android standalone PWA */
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+.pb-safe {
+  padding-bottom: max(0.35rem, env(safe-area-inset-bottom));
+}

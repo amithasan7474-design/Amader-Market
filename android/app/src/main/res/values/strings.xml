@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Amader Market</string>
+    <string name="title_activity_main">Amader Market</string>
+    <string name="package_name">net.isbest.amadermarket</string>
+    <string name="custom_url_scheme">net.isbest.amadermarket</string>
+</resources>

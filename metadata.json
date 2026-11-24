@@ -1,0 +1,8 @@
+{
+  "name": "Amader Market",
+  "description": "Amader Market - Fast, offline-ready native shopping & complete marketplace control app for amadermarket.is-best.net.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
