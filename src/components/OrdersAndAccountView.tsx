@@ -37,23 +37,28 @@ import { formatBDT, formatDateShort, getSafeImage, isMainSuperAdminAccount } fro
 import { uploadImageFile } from '../utils/imageUpload';
 import { RoleAvatar, RoleBadge } from './RoleBadge';
 import { useConfirm } from './ConfirmProvider';
+import { OrderPrintModal } from './OrderPrintModal';
 
 interface OrdersViewProps {
   orders: OrderItem[];
   houses: HouseItem[];
+  siteSettings?: SiteSettings;
   currentUserUid?: string | null;
   lang: LangCode;
   onOpenProduct: (h: HouseItem) => void;
   onGoLogin: () => void;
+  onNotify?: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 export const OrdersView: React.FC<OrdersViewProps> = ({
   orders,
   houses,
+  siteSettings,
   currentUserUid,
   lang,
   onOpenProduct,
   onGoLogin,
+  onNotify,
 }) => {
   const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
 
@@ -100,8 +105,14 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
         <div className="space-y-3">
           {myOrders.map((o) => {
             const product = o.houseId ? houses.find((h) => h.id === o.houseId) : undefined;
-            const img = product ? getSafeImage(product) : o.cartItems?.[0]?.image || '';
-            const title = product?.data?.title || (o.isCart ? `${o.cartItems?.length || 0} Cart Items` : 'Order');
+            const img =
+              o.selectedVariation?.image ||
+              o.productImage ||
+              (product ? getSafeImage(product) : o.cartItems?.[0]?.image || '');
+            const title =
+              o.productTitle ||
+              product?.data?.title ||
+              (o.isCart ? `${o.cartItems?.length || 0} Cart Items` : 'Order');
             const isDelivered = o.status === 'Delivered';
 
             return (
@@ -120,6 +131,11 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                     </div>
                     <div className="min-w-0">
                       <div className="font-semibold text-sm truncate">{title}</div>
+                      {o.selectedVariation?.label && (
+                        <div className="text-[11px] font-bold text-emerald-700 dark:text-amber-300 mt-0.5">
+                          {o.selectedVariation.label} · ×{o.quantity || 1}
+                        </div>
+                      )}
                       <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span
                           className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
@@ -189,81 +205,14 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
         </div>
       )}
 
-      {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#0b1b19] border border-slate-200 dark:border-emerald-950 p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-emerald-950 pb-3">
-              <div>
-                <h3 className="font-display font-bold text-lg">Amader Market Invoice</h3>
-                <p className="text-xs font-mono-num text-slate-500">#{selectedOrder.orderId}</p>
-              </div>
-              <span className="text-xs font-bold text-emerald-700 dark:text-amber-400">
-                {selectedOrder.status}
-              </span>
-            </div>
-            <div className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300">
-              <div>
-                <strong>{lang === 'bn' ? 'গ্রাহক:' : 'Customer:'}</strong> {selectedOrder.name}
-              </div>
-              <div>
-                <strong>{lang === 'bn' ? 'ফোন:' : 'Phone:'}</strong> {selectedOrder.phone}
-              </div>
-              {selectedOrder.offerTargetNumber && (
-                <div className="font-mono-num font-bold text-sky-700 dark:text-sky-300">
-                  <strong>{lang === 'bn' ? 'অফার নাম্বার:' : 'Offer Number:'}</strong>{' '}
-                  {selectedOrder.offerTargetNumber}
-                </div>
-              )}
-              {selectedOrder.message && (
-                <div>
-                  <strong>{lang === 'bn' ? 'ঠিকানা / নোট:' : 'Address / Note:'}</strong>{' '}
-                  {selectedOrder.message}
-                </div>
-              )}
-              <div>
-                <strong>{lang === 'bn' ? 'পেমেন্ট:' : 'Payment:'}</strong> {selectedOrder.paymentMethod}{' '}
-                {selectedOrder.trxId ? `(TrxID: ${selectedOrder.trxId})` : ''}
-              </div>
-              <div>
-                <strong>{lang === 'bn' ? 'তারিখ:' : 'Date:'}</strong>{' '}
-                {formatDateShort(selectedOrder.createdAt, lang)}
-              </div>
-            </div>
-            {selectedOrder.status === 'Delivered' && (
-              <div className="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-xs font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>
-                  {lang === 'bn'
-                    ? 'আপনার অর্ডার সফলভাবে ডেলিভারি হয়েছে ✅ (সংরক্ষিত রেকর্ড)'
-                    : 'Your order was delivered successfully ✅'}
-                </span>
-              </div>
-            )}
-            <div className="pt-3 border-t border-slate-200 dark:border-emerald-950 flex items-center justify-between font-display font-bold text-base">
-              <span>{lang === 'bn' ? 'সর্বমোট' : 'Total'}</span>
-              <span className="font-mono-num text-emerald-800 dark:text-amber-400">
-                {formatBDT(selectedOrder.totalPrice)}
-              </span>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="flex-1 min-h-[42px] rounded-xl bg-emerald-800 dark:bg-amber-500 text-white dark:text-slate-950 text-xs font-semibold"
-              >
-                {lang === 'bn' ? 'প্রিন্ট / PDF' : 'Print / PDF'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedOrder(null)}
-                className="flex-1 min-h-[42px] rounded-xl border border-slate-200 dark:border-emerald-900 text-xs font-semibold"
-              >
-                {lang === 'bn' ? 'বন্ধ করুন' : 'Close'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <OrderPrintModal
+        order={selectedOrder}
+        houses={houses}
+        siteSettings={siteSettings || { appName: 'Amader Market' }}
+        lang={lang}
+        onClose={() => setSelectedOrder(null)}
+        onNotify={(m, t) => onNotify?.(m, t)}
+      />
     </div>
   );
 };

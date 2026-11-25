@@ -11,6 +11,7 @@ import type {
 import {
   formatBDT,
   getEffectivePrice,
+  getSafeImage,
   getTelecomCategoryLabel,
   isTelecomDriveProduct,
   isVipSimProduct,
@@ -41,6 +42,7 @@ interface CheckoutModalProps {
     senderNumber: string;
     quantity: number;
     deliveryArea: 'dhaka' | 'outside';
+    deliveryFee: number;
     totalPrice: number;
     productTotal: number;
     profit: number;
@@ -284,6 +286,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         senderNumber: senderNumber.trim(),
         quantity: qty,
         deliveryArea,
+        deliveryFee,
         totalPrice: grandTotal,
         productTotal,
         profit,
@@ -315,13 +318,61 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {/* Summary */}
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#071312] border border-slate-200/80 dark:border-emerald-950 space-y-1.5 text-sm">
-            <div className="font-semibold">
-              {isCartCheckout
-                ? `${cart.length} ${lang === 'bn' ? 'টি পণ্য (কার্ট)' : 'Cart Items'}`
-                : selectedHouse?.data.title}
-            </div>
+          {/* Summary with Product & Variant Photo */}
+          <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#071312] border border-slate-200/80 dark:border-emerald-950 space-y-2 text-sm">
+            {!isCartCheckout && selectedHouse && (
+              <div className="flex items-center gap-3 pb-2 border-b border-slate-200/70 dark:border-emerald-950">
+                {(selectedVariation?.image || getSafeImage(selectedHouse)) && (
+                  <img
+                    src={selectedVariation?.image || getSafeImage(selectedHouse)}
+                    alt={selectedHouse.data.title}
+                    referrerPolicy="no-referrer"
+                    className="w-14 h-14 rounded-xl object-cover border border-slate-200 dark:border-emerald-900 shrink-0"
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold leading-snug line-clamp-2">{selectedHouse.data.title}</div>
+                  {selectedVariation && (
+                    <div className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-amber-300 text-[11px] font-bold">
+                      <span>{selectedVariation.label}</span>
+                      <span>·</span>
+                      <span>× {qty}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {isCartCheckout && (
+              <div className="space-y-1.5 pb-2 border-b border-slate-200/70 dark:border-emerald-950">
+                <div className="font-semibold text-xs">
+                  {cart.length} {lang === 'bn' ? 'টি পণ্য (কার্ট)' : 'Cart Items'}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {cart.map((c, idx) => (
+                    <div
+                      key={idx}
+                      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white dark:bg-[#0b1b19] border border-slate-200 dark:border-emerald-900 text-[11px]"
+                    >
+                      {c.image && (
+                        <img
+                          src={c.image}
+                          alt={c.title}
+                          referrerPolicy="no-referrer"
+                          className="w-6 h-6 rounded object-cover shrink-0"
+                        />
+                      )}
+                      <span className="truncate max-w-[120px] font-medium">{c.title}</span>
+                      {c.variation?.label && (
+                        <span className="font-bold text-emerald-700 dark:text-amber-300">
+                          ({c.variation.label})
+                        </span>
+                      )}
+                      <span className="font-mono-num text-slate-500">×{c.quantity}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {!isCartCheckout && (selectedHouse?.data.telecomCompany || selectedHouse?.data.offerValidity) && (
               <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-sky-700 dark:text-sky-300">
                 {selectedHouse.data.telecomCompany && (
@@ -335,9 +386,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </span>
                 )}
               </div>
-            )}
-            {!isCartCheckout && selectedVariation && (
-              <div className="text-xs text-slate-500">{selectedVariation.label}</div>
             )}
             <div className="flex justify-between text-xs text-slate-500 pt-1">
               <span>{lang === 'bn' ? 'পণ্যের মূল্য' : 'Product Total'}</span>

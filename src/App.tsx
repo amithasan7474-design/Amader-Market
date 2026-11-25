@@ -1049,7 +1049,7 @@ function AppContent({
     const newItem: CartItem = {
       id: h.id,
       title: h.data.title,
-      image: getSafeImage(h),
+      image: v?.image || getSafeImage(h),
       price: unitPrice,
       quantity: 1,
       variation: v,
@@ -1121,6 +1121,7 @@ function AppContent({
     senderNumber: string;
     quantity: number;
     deliveryArea: 'dhaka' | 'outside';
+    deliveryFee: number;
     totalPrice: number;
     productTotal: number;
     profit: number;
@@ -1143,6 +1144,8 @@ function AppContent({
       senderNumber: payload.senderNumber,
       status: 'Pending',
       createdAt: Date.now(),
+      deliveryArea: payload.deliveryArea,
+      deliveryFee: payload.deliveryFee,
       totalPrice: payload.totalPrice,
       productTotal: payload.productTotal,
       profit: payload.profit,
@@ -1169,6 +1172,10 @@ function AppContent({
       orderDoc.sellerId = cart[0]?.sellerId || 'admin';
     } else if (selectedHouse) {
       orderDoc.houseId = selectedHouse.id;
+      orderDoc.productTitle = selectedHouse.data.title;
+      orderDoc.productImage = payload.selectedVariation?.image || getSafeImage(selectedHouse);
+      orderDoc.productCategory = selectedHouse.data.category || '';
+      orderDoc.productType = selectedHouse.data.productType || 'physical';
       orderDoc.sellerId = selectedHouse.ownerId || selectedHouse.data.ownerId || 'admin';
       orderDoc.quantity = payload.quantity;
       orderDoc.selectedVariation = payload.selectedVariation;
@@ -1493,10 +1500,12 @@ function AppContent({
               <OrdersView
                 orders={orders}
                 houses={houses}
+                siteSettings={siteSettings}
                 currentUserUid={authUser?.uid}
                 lang={lang}
                 onOpenProduct={handleSelectProduct}
                 onGoLogin={() => setActiveView('auth')}
+                onNotify={notify}
               />
             )}
 

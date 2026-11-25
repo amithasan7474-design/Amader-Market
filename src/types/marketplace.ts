@@ -144,6 +144,9 @@ export interface SiteSettings {
 export interface ProductVariation {
   label: string;
   price: number;
+  image?: string;
+  unitAmount?: string;
+  unitType?: string;
   vipNumbers?: string[];
 }
 
@@ -281,8 +284,14 @@ export interface OrderItem {
   isCart?: boolean;
   cartItems?: CartItem[];
   houseId?: string;
+  productTitle?: string;
+  productImage?: string;
+  productCategory?: string;
+  productType?: string;
   sellerId?: string;
   quantity?: number;
+  deliveryArea?: 'dhaka' | 'outside' | string;
+  deliveryFee?: number;
   selectedVariation?: ProductVariation | null;
   totalPrice: number;
   productTotal?: number;

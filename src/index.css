@@ -395,3 +395,35 @@
 .pb-safe {
   padding-bottom: max(0.35rem, env(safe-area-inset-bottom));
 }
+
+/* Crisp Order Demo Print / Invoice Styles */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  .printable-order-slip,
+  .printable-order-slip * {
+    visibility: visible !important;
+  }
+  .printable-order-slip {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 16px !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

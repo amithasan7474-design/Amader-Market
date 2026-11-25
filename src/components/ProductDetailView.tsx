@@ -89,6 +89,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   onNotify,
 }) => {
   const images = getAllImages(house);
+  const variations = house.data.variations || [];
   const [activeImgIdx, setActiveImgIdx] = useState(0);
   const [selectedVarIdx, setSelectedVarIdx] = useState(0);
   const [qty, setQty] = useState(Number(house.data.moq) || 1);
@@ -96,8 +97,15 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   const [reviewText, setReviewText] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
 
-  const variations = house.data.variations || [];
   const activeVariation = variations.length > 0 ? variations[selectedVarIdx] ?? variations[0] : null;
+  const handleSelectVariation = (idx: number) => {
+    setSelectedVarIdx(idx);
+    const chosen = variations[idx];
+    if (chosen?.image) {
+      const foundIdx = images.indexOf(chosen.image);
+      if (foundIdx >= 0) setActiveImgIdx(foundIdx);
+    }
+  };
   const now = Date.now();
   const effectivePrice = getEffectivePrice(house, siteSettings, selectedVarIdx, now);
   const originalPrice = getOriginalPrice(house, selectedVarIdx);
@@ -219,21 +227,33 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
           </div>
 
           {images.length > 1 && (
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-              {images.map((src, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setActiveImgIdx(idx)}
-                  className={`w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 transition-all ${
-                    idx === activeImgIdx
-                      ? 'border-emerald-700 dark:border-amber-400'
-                      : 'border-transparent opacity-70 hover:opacity-100'
-                  }`}
-                >
-                  <img src={src} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
-                </button>
-              ))}
+            <div className="grid grid-cols-5 sm:grid-cols-6 gap-2">
+              {images.map((src, idx) => {
+                const matchedVarIdx = variations.findIndex((v) => v.image === src);
+                const matchedVar = matchedVarIdx >= 0 ? variations[matchedVarIdx] : null;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setActiveImgIdx(idx);
+                      if (matchedVarIdx >= 0) setSelectedVarIdx(matchedVarIdx);
+                    }}
+                    className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all bg-white dark:bg-[#071312] ${
+                      idx === activeImgIdx
+                        ? 'border-emerald-700 dark:border-amber-400 ring-2 ring-emerald-500/30 dark:ring-amber-400/30'
+                        : 'border-slate-200 dark:border-emerald-950 opacity-80 hover:opacity-100'
+                    }`}
+                  >
+                    <img src={src} alt={matchedVar?.label || ''} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                    {matchedVar?.label && (
+                      <span className="absolute inset-x-0 bottom-0 bg-black/65 text-white text-[9px] font-bold px-1 py-0.5 truncate text-center">
+                        {matchedVar.label}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -315,27 +335,50 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             )}
           </div>
 
-          {/* Variations */}
+          {/* Variations (with optional Size / Weight Photo Preview) */}
           {variations.length > 0 && (
             <div>
               <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">
-                {lang === 'bn' ? 'ভ্যারিয়েশন নির্বাচন করুন' : 'Select Option'}
+                {house.data.productType === 'clothing_size'
+                  ? lang === 'bn'
+                    ? 'সাইজ / কালার নির্বাচন করুন'
+                    : 'Select Size / Variant'
+                  : house.data.productType === 'liquid_weight'
+                  ? lang === 'bn'
+                    ? 'পরিমাণ / ওজন নির্বাচন করুন'
+                    : 'Select Weight / Volume'
+                  : lang === 'bn'
+                  ? 'ভ্যারিয়েশন নির্বাচন করুন'
+                  : 'Select Option'}
               </div>
               <div className="flex flex-wrap gap-2">
-                {variations.map((v, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setSelectedVarIdx(idx)}
-                    className={`min-h-[40px] px-3.5 py-2 rounded-xl border text-xs font-semibold transition-colors ${
-                      idx === selectedVarIdx
-                        ? 'bg-emerald-800 text-white border-emerald-800 dark:bg-amber-500 dark:text-slate-950 dark:border-amber-500'
-                        : 'bg-slate-50 dark:bg-[#071312] border-slate-200 dark:border-emerald-900'
-                    }`}
-                  >
-                    {v.label} · {formatBDT(v.price)}
-                  </button>
-                ))}
+                {variations.map((v, idx) => {
+                  const selected = idx === selectedVarIdx;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleSelectVariation(idx)}
+                      className={`min-h-[44px] px-3 py-1.5 rounded-xl border text-xs font-semibold inline-flex items-center gap-2 transition-all ${
+                        selected
+                          ? 'bg-emerald-800 text-white border-emerald-800 dark:bg-amber-500 dark:text-slate-950 dark:border-amber-500 shadow-xs'
+                          : 'bg-slate-50 dark:bg-[#071312] border-slate-200 dark:border-emerald-900 hover:border-emerald-600/50'
+                      }`}
+                    >
+                      {v.image && (
+                        <img
+                          src={v.image}
+                          alt={v.label}
+                          referrerPolicy="no-referrer"
+                          className="w-7 h-7 rounded-lg object-cover border border-white/40 shrink-0"
+                        />
+                      )}
+                      <span>
+                        {v.label} · {formatBDT(v.price)}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

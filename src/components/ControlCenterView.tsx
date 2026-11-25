@@ -19,6 +19,7 @@ import {
   Package,
   Phone,
   Plus,
+  Printer,
   Radio,
   Send,
   Settings,
@@ -66,7 +67,9 @@ import {
   getSafeImage,
   getTelecomCategoryLabel,
   getWaLink,
+  isClothingCategory,
   isDrivePackageCategory,
+  isLiquidWeightCategory,
   isMainSuperAdminAccount,
   isModeratorOrAbove,
   isSuperAdminAccount,
@@ -80,6 +83,7 @@ import { normalizeExternalUrl, uploadImageFile } from '../utils/imageUpload';
 import { RoleAvatar, RoleBadge } from './RoleBadge';
 import { SiteSettingsControl } from './SiteSettingsControl';
 import { useConfirm } from './ConfirmProvider';
+import { buildOrderFullCopyText, OrderPrintModal, resolveOrderItems } from './OrderPrintModal';
 
 interface ControlCenterViewProps {
   lang: LangCode;
@@ -205,10 +209,12 @@ export const ControlCenterView: React.FC<ControlCenterViewProps> = ({
   const [digitalLinks, setDigitalLinks] = useState<DigitalLink[]>([]);
   const [digitalTexts, setDigitalTexts] = useState<DigitalTextItem[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadingVarIdx, setUploadingVarIdx] = useState<number | null>(null);
   const [imgText, setImgText] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState('ALL');
   const [orderOwnerFilter, setOrderOwnerFilter] = useState<'ALL' | 'MINE' | 'OTHERS'>('ALL');
+  const [printingOrder, setPrintingOrder] = useState<OrderItem | null>(null);
   const [userSearch, setUserSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState<'ALL' | 'online' | 'admin' | 'seller' | 'user'>('ALL');
   const [withdrawAmt, setWithdrawAmt] = useState('');
@@ -696,6 +702,36 @@ export const ControlCenterView: React.FC<ControlCenterViewProps> = ({
     }
   };
 
+  const handleVariationImageUpload = async (
+    idx: number,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingVarIdx(idx);
+    try {
+      const res = await uploadImageFile(file, siteSettings.imgbbApiKey);
+      if (res.url) {
+        setFormData((prev) => {
+          const next = [...(prev.variations || [])];
+          if (next[idx]) {
+            next[idx] = { ...next[idx], image: res.url };
+          }
+          return { ...prev, variations: next };
+        });
+        onNotify(
+          lang === 'bn' ? 'সাইজ/প্যাকের ছবি আপলোড হয়েছে!' : 'Variant image uploaded!',
+          'success'
+        );
+      }
+    } catch {
+      onNotify(lang === 'bn' ? 'ছবি আপলোড ব্যর্থ।' : 'Upload failed.', 'error');
+    } finally {
+      setUploadingVarIdx(null);
+      e.target.value = '';
+    }
+  };
+
   const submitAdminActionRequest = async (
     req: Omit<AdminActionRequest, 'id' | 'status' | 'timestamp'>
   ) => {
@@ -788,6 +824,20 @@ export const ControlCenterView: React.FC<ControlCenterViewProps> = ({
         ? resolvedTelecomCat || 'টেলিকম ও সিম'
         : formData.category;
 
+    const cleanedVariations: ProductVariation[] = (formData.variations || [])
+      .filter((v) => (v.label || '').trim() || (v.image || '').trim())
+      .map((v) => {
+        const clean: ProductVariation = {
+          label: (v.label || '').trim() || 'Option',
+          price: Number(v.price) || Number(formData.rent) || 0,
+        };
+        if (v.image && v.image.trim()) clean.image = v.image.trim();
+        if (v.unitAmount && v.unitAmount.trim()) clean.unitAmount = v.unitAmount.trim();
+        if (v.unitType && v.unitType.trim()) clean.unitType = v.unitType.trim();
+        if (v.vipNumbers && v.vipNumbers.length > 0) clean.vipNumbers = v.vipNumbers;
+        return clean;
+      });
+
     const payload: HouseData = {
       ...formData,
       category: resolvedCategory,
@@ -812,6 +862,7 @@ export const ControlCenterView: React.FC<ControlCenterViewProps> = ({
           ? 120
           : Number(formData.deliveryChargeOutside),
       productType: normalizedProductType,
+      variations: cleanedVariations,
       imageLinks: imgs,
       videoLinks: videoUrl.trim() ? [{ title: 'Video Review', url: videoUrl.trim() }] : [],
       digitalLinks: canWriteDigitalFields ? cleanedLinks : origHouse?.data?.digitalLinks || [],
@@ -2460,67 +2511,408 @@ export const ControlCenterView: React.FC<ControlCenterViewProps> = ({
             </div>
           </div>
 
-          {/* Variations */}
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#071312] border border-slate-200 dark:border-emerald-950 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold">
-                {lang === 'bn' ? 'ভ্যারিয়েশন (সাইজ / ওজন / প্যাকেজ)' : 'Variations (Optional)'}
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setFormData({
-                    ...formData,
-                    variations: [...(formData.variations || []), { label: '', price: formData.rent || 0 }],
-                  })
-                }
-                className="px-3 py-1 rounded-lg bg-emerald-800 dark:bg-amber-500 text-white dark:text-slate-950 text-xs font-semibold"
+          {/* SMART VARIATIONS STUDIO (Adapts specifically to Clothing Sizes vs Liquid/Weight vs Other Types) */}
+          {(() => {
+            const isClothingMode =
+              formData.productType === 'clothing_size' || isClothingCategory(formData.category);
+            const isLiquidMode =
+              !isClothingMode &&
+              (formData.productType === 'liquid_weight' ||
+                isLiquidWeightCategory(formData.category));
+            const CLOTHING_QUICK_SIZES = [
+              'XS',
+              'S',
+              'M',
+              'L',
+              'XL',
+              'XXL',
+              '3XL',
+              'Free Size',
+              '28',
+              '30',
+              '32',
+              '34',
+              '36',
+            ];
+            const LIQUID_WEIGHT_PRESETS = [
+              { amount: '100', unit: 'গ্রাম', label: '100 গ্রাম' },
+              { amount: '250', unit: 'গ্রাম', label: '250 গ্রাম' },
+              { amount: '500', unit: 'গ্রাম', label: '500 গ্রাম' },
+              { amount: '1', unit: 'কেজি', label: '1 কেজি' },
+              { amount: '2', unit: 'কেজি', label: '2 কেজি' },
+              { amount: '5', unit: 'কেজি', label: '5 কেজি' },
+              { amount: '100', unit: 'ml', label: '100 ml' },
+              { amount: '250', unit: 'ml', label: '250 ml' },
+              { amount: '500', unit: 'ml', label: '500 ml' },
+              { amount: '1', unit: 'লিটার', label: '1 লিটার' },
+              { amount: '2', unit: 'লিটার', label: '2 লিটার' },
+              { amount: '5', unit: 'লিটার', label: '5 লিটার' },
+            ];
+            const UNIT_OPTIONS = [
+              { value: 'গ্রাম', label: lang === 'bn' ? 'গ্রাম (Gram)' : 'Gram (g)' },
+              { value: 'কেজি', label: lang === 'bn' ? 'কেজি (KG)' : 'KG' },
+              { value: 'ml', label: lang === 'bn' ? 'মিলি (ml)' : 'ml' },
+              { value: 'লিটার', label: lang === 'bn' ? 'লিটার (Liter)' : 'Liter' },
+              { value: 'পিস', label: lang === 'bn' ? 'পিস (Pcs)' : 'Pcs' },
+            ];
+
+            return (
+              <div
+                className={`p-4 rounded-2xl border space-y-3 ${
+                  isClothingMode
+                    ? 'bg-violet-50/75 dark:bg-violet-950/20 border-violet-300 dark:border-violet-800/70'
+                    : isLiquidMode
+                    ? 'bg-cyan-50/75 dark:bg-cyan-950/20 border-cyan-300 dark:border-cyan-800/70'
+                    : 'bg-slate-50 dark:bg-[#071312] border-slate-200 dark:border-emerald-950'
+                }`}
               >
-                + Add
-              </button>
-            </div>
-            {(formData.variations || []).map((v: ProductVariation, idx: number) => (
-              <div key={idx} className="flex gap-2">
-                <input
-                  type="text"
-                  value={v.label}
-                  onChange={(e) => {
-                    const next = [...(formData.variations || [])];
-                    next[idx] = { ...next[idx], label: e.target.value };
-                    setFormData({ ...formData, variations: next });
-                  }}
-                  placeholder="Label (e.g. 1 KG, XL)"
-                  className="flex-1 h-9 px-3 rounded-lg bg-white dark:bg-[#0b1b19] border border-slate-200 dark:border-emerald-900 text-xs"
-                />
-                <input
-                  type="number"
-                  value={v.price ? v.price : ''}
-                  onChange={(e) => {
-                    const next = [...(formData.variations || [])];
-                    next[idx] = {
-                      ...next[idx],
-                      price: e.target.value === '' ? 0 : Number(e.target.value),
-                    };
-                    setFormData({ ...formData, variations: next });
-                  }}
-                  placeholder="Price"
-                  className="w-28 h-9 px-3 rounded-lg bg-white dark:bg-[#0b1b19] border border-slate-200 dark:border-emerald-900 text-xs font-mono-num"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setFormData({
-                      ...formData,
-                      variations: (formData.variations || []).filter((_, i) => i !== idx),
-                    })
-                  }
-                  className="w-9 h-9 rounded-lg text-rose-500 flex items-center justify-center"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-bold block">
+                      {isClothingMode
+                        ? lang === 'bn'
+                          ? '👕 জামা-কাপড়ের সাইজ ও আলাদা ছবির স্টুডিও'
+                          : '👕 Clothing Size & Per-Size Photo Studio'
+                        : isLiquidMode
+                        ? lang === 'bn'
+                          ? '🧴 লিকুইড / ওজন (কেজি, গ্রাম, লিটার, মিলি) ও ছবির স্টুডিও'
+                          : '🧴 Liquid / Weight (KG, Gram, Liter, ml) & Photo Studio'
+                        : lang === 'bn'
+                        ? 'ভ্যারিয়েশন ও আলাদা ছবি (ঐচ্ছিক)'
+                        : 'Product Variants & Photos (Optional)'}
+                    </span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {isClothingMode
+                        ? lang === 'bn'
+                          ? 'পছন্দের সাইজ ট্যাপ করুন এবং প্রতিটি সাইজের পাশে আলাদা ছবি আপলোড করুন।'
+                          : 'Tap sizes and upload a dedicated photo next to each size/color.'
+                        : isLiquidMode
+                        ? lang === 'bn'
+                          ? 'কত কেজি / গ্রাম / লিটার / মিলি নির্বাচন করুন এবং পাশে আলাদা ছবি ও দাম দিন।'
+                          : 'Specify exact KG / Gram / Liter / ml with price and per-pack photo.'
+                        : lang === 'bn'
+                        ? 'প্রতিটি অপশনের পাশে আলাদা দাম ও ছবি যুক্ত করতে পারবেন।'
+                        : 'Add optional size/pack label, price, and variant photo.'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        variations: [
+                          ...(formData.variations || []),
+                          isLiquidMode
+                            ? {
+                                label: '500 গ্রাম',
+                                unitAmount: '500',
+                                unitType: 'গ্রাম',
+                                price: formData.rent || 0,
+                                image: '',
+                              }
+                            : {
+                                label: '',
+                                price: formData.rent || 0,
+                                image: '',
+                              },
+                        ],
+                      })
+                    }
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-800 dark:bg-amber-500 text-white dark:text-slate-950 text-xs font-bold inline-flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>
+                      {isClothingMode
+                        ? lang === 'bn'
+                          ? 'নতুন সাইজ'
+                          : 'Add Size'
+                        : isLiquidMode
+                        ? lang === 'bn'
+                          ? 'নতুন প্যাক/ওজন'
+                          : 'Add Pack'
+                        : lang === 'bn'
+                        ? 'যোগ করুন'
+                        : 'Add'}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Clothing-only quick preset sizes */}
+                {isClothingMode && (
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-semibold text-violet-900 dark:text-violet-300">
+                      {lang === 'bn'
+                        ? 'কুইক সাইজ (ট্যাপ করলেই লিস্টে যোগ হবে):'
+                        : 'Quick Sizes (Tap to add):'}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {CLOTHING_QUICK_SIZES.map((sz) => {
+                        const exists = (formData.variations || []).some(
+                          (v) => v.label.trim().toUpperCase() === sz.toUpperCase()
+                        );
+                        return (
+                          <button
+                            key={sz}
+                            type="button"
+                            onClick={() =>
+                              setFormData({
+                                ...formData,
+                                variations: [
+                                  ...(formData.variations || []),
+                                  { label: sz, price: formData.rent || 0, image: '' },
+                                ],
+                              })
+                            }
+                            className={`h-8 px-2.5 rounded-lg text-xs font-bold border transition-colors ${
+                              exists
+                                ? 'bg-violet-700 text-white border-violet-700 dark:bg-violet-500 dark:text-slate-950'
+                                : 'bg-white dark:bg-[#0b1b19] border-violet-200 dark:border-violet-800 text-slate-700 dark:text-slate-200 hover:border-violet-500'
+                            }`}
+                          >
+                            + {sz}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Liquid / Weight-only quick preset weights & volumes */}
+                {isLiquidMode && (
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-semibold text-cyan-900 dark:text-cyan-300">
+                      {lang === 'bn'
+                        ? 'দ্রুত ওজন / পরিমাণ সিলেক্ট (গ্রাম / কেজি / মিলি / লিটার):'
+                        : 'Quick Weight / Volume Presets:'}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {LIQUID_WEIGHT_PRESETS.map((preset) => {
+                        const exists = (formData.variations || []).some(
+                          (v) => v.label.trim() === preset.label
+                        );
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() =>
+                              setFormData({
+                                ...formData,
+                                variations: [
+                                  ...(formData.variations || []),
+                                  {
+                                    label: preset.label,
+                                    unitAmount: preset.amount,
+                                    unitType: preset.unit,
+                                    price: formData.rent || 0,
+                                    image: '',
+                                  },
+                                ],
+                              })
+                            }
+                            className={`h-8 px-2.5 rounded-lg text-xs font-bold border transition-colors ${
+                              exists
+                                ? 'bg-cyan-700 text-white border-cyan-700 dark:bg-cyan-500 dark:text-slate-950'
+                                : 'bg-white dark:bg-[#0b1b19] border-cyan-200 dark:border-cyan-800 text-slate-700 dark:text-slate-200 hover:border-cyan-500'
+                            }`}
+                          >
+                            + {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Variation Rows with Per-Row Photo Upload */}
+                <div className="space-y-2.5">
+                  {(formData.variations || []).map((v: ProductVariation, idx: number) => (
+                    <div
+                      key={idx}
+                      className="p-2.5 rounded-xl bg-white dark:bg-[#0b1b19] border border-slate-200 dark:border-emerald-900 space-y-2"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Per-Variant Image Preview + Direct Upload Button right next to Size */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {v.image ? (
+                            <div className="relative w-11 h-11 rounded-lg overflow-hidden border border-slate-200 dark:border-emerald-800 shrink-0">
+                              <img
+                                src={v.image}
+                                alt={v.label || 'Variant'}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = [...(formData.variations || [])];
+                                  next[idx] = { ...next[idx], image: '' };
+                                  setFormData({ ...formData, variations: next });
+                                }}
+                                className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white flex items-center justify-center"
+                                title="Remove photo"
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+                          ) : null}
+
+                          <label
+                            className={`h-9 px-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-amber-300 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer shrink-0 ${
+                              uploadingVarIdx === idx ? 'opacity-60 pointer-events-none' : ''
+                            }`}
+                          >
+                            {uploadingVarIdx === idx ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <ImagePlus className="w-3.5 h-3.5" />
+                            )}
+                            <span>
+                              {uploadingVarIdx === idx
+                                ? '...'
+                                : v.image
+                                ? lang === 'bn'
+                                  ? 'বদলান'
+                                  : 'Change'
+                                : lang === 'bn'
+                                ? 'ছবি দিন'
+                                : 'Photo'}
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleVariationImageUpload(idx, e)}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+
+                        {/* Smart Liquid/Weight Amount + Unit inputs OR Standard/Clothing Size input */}
+                        {isLiquidMode ? (
+                          <>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={v.unitAmount ?? ''}
+                              onChange={(e) => {
+                                const amt = e.target.value;
+                                const unit = v.unitType || 'গ্রাম';
+                                const next = [...(formData.variations || [])];
+                                next[idx] = {
+                                  ...next[idx],
+                                  unitAmount: amt,
+                                  unitType: unit,
+                                  label: amt.trim() ? `${amt.trim()} ${unit}` : next[idx].label,
+                                };
+                                setFormData({ ...formData, variations: next });
+                              }}
+                              placeholder={lang === 'bn' ? 'কত? (যেমন 500)' : 'Qty (500)'}
+                              className="w-24 h-9 px-2.5 rounded-lg bg-slate-50 dark:bg-[#071312] border border-slate-200 dark:border-emerald-900 text-xs font-mono-num font-bold"
+                            />
+                            <select
+                              value={v.unitType || 'গ্রাম'}
+                              onChange={(e) => {
+                                const unit = e.target.value;
+                                const amt = (v.unitAmount || '').trim();
+                                const next = [...(formData.variations || [])];
+                                next[idx] = {
+                                  ...next[idx],
+                                  unitType: unit,
+                                  label: amt ? `${amt} ${unit}` : next[idx].label,
+                                };
+                                setFormData({ ...formData, variations: next });
+                              }}
+                              className="h-9 px-2 rounded-lg bg-slate-50 dark:bg-[#071312] border border-slate-200 dark:border-emerald-900 text-xs font-semibold"
+                            >
+                              {UNIT_OPTIONS.map((u) => (
+                                <option key={u.value} value={u.value}>
+                                  {u.label}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              value={v.label}
+                              onChange={(e) => {
+                                const next = [...(formData.variations || [])];
+                                next[idx] = { ...next[idx], label: e.target.value };
+                                setFormData({ ...formData, variations: next });
+                              }}
+                              placeholder={lang === 'bn' ? 'প্রদর্শিত নাম (যেমন: ৫০০ গ্রাম বোতল)' : 'Display label'}
+                              className="flex-1 min-w-[130px] h-9 px-2.5 rounded-lg bg-slate-50 dark:bg-[#071312] border border-slate-200 dark:border-emerald-900 text-xs"
+                            />
+                          </>
+                        ) : (
+                          <input
+                            type="text"
+                            value={v.label}
+                            onChange={(e) => {
+                              const next = [...(formData.variations || [])];
+                              next[idx] = { ...next[idx], label: e.target.value };
+                              setFormData({ ...formData, variations: next });
+                            }}
+                            placeholder={
+                              isClothingMode
+                                ? lang === 'bn'
+                                  ? 'সাইজ / কালার (যেমন: XL - Black Hoodie)'
+                                  : 'Size / Color (e.g. XL - Black)'
+                                : lang === 'bn'
+                                ? 'অপশন নাম (যেমন: 1 KG, XL)'
+                                : 'Label (e.g. 1 KG, XL)'
+                            }
+                            className="flex-1 min-w-[140px] h-9 px-3 rounded-lg bg-slate-50 dark:bg-[#071312] border border-slate-200 dark:border-emerald-900 text-xs font-semibold"
+                          />
+                        )}
+
+                        <input
+                          type="number"
+                          value={v.price ? v.price : ''}
+                          onChange={(e) => {
+                            const next = [...(formData.variations || [])];
+                            next[idx] = {
+                              ...next[idx],
+                              price: e.target.value === '' ? 0 : Number(e.target.value),
+                            };
+                            setFormData({ ...formData, variations: next });
+                          }}
+                          placeholder={lang === 'bn' ? 'দাম (৳)' : 'Price'}
+                          className="w-24 h-9 px-2.5 rounded-lg bg-slate-50 dark:bg-[#071312] border border-slate-200 dark:border-emerald-900 text-xs font-mono-num font-bold"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFormData({
+                              ...formData,
+                              variations: (formData.variations || []).filter((_, i) => i !== idx),
+                            })
+                          }
+                          className="w-9 h-9 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center shrink-0"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <input
+                        type="url"
+                        value={v.image || ''}
+                        onChange={(e) => {
+                          const next = [...(formData.variations || [])];
+                          next[idx] = { ...next[idx], image: e.target.value };
+                          setFormData({ ...formData, variations: next });
+                        }}
+                        placeholder={
+                          lang === 'bn'
+                            ? 'অথবা এই সাইজ/প্যাকের ছবির লিংক পেস্ট করুন (ঐচ্ছিক)...'
+                            : 'Or paste image URL for this variant (optional)...'
+                        }
+                        className="w-full h-8 px-2.5 rounded-lg bg-slate-50/70 dark:bg-[#071312] border border-slate-200/70 dark:border-emerald-950 text-[11px] font-mono text-slate-600 dark:text-slate-300"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
+            );
+          })()}
 
           {/* IMAGE UPLOAD API + IMAGE URLS + PREVIEW STRIP */}
           <div className="space-y-2.5">
@@ -2928,6 +3320,8 @@ export const ControlCenterView: React.FC<ControlCenterViewProps> = ({
             <div className="space-y-3">
               {visibleOrders.map((o) => {
                 const orderProduct = o.houseId ? houses.find((h) => h.id === o.houseId) : undefined;
+                const resolvedItems = resolveOrderItems(o, houses);
+                const primaryItem = resolvedItems[0];
                 const ownerUid =
                   o.sellerId && o.sellerId !== 'admin'
                     ? o.sellerId
@@ -2939,8 +3333,26 @@ export const ControlCenterView: React.FC<ControlCenterViewProps> = ({
                   orderProduct?.data?.ownerName ||
                   (o.sellerId === 'admin' ? (lang === 'bn' ? 'অ্যাডমিন পোস্ট' : 'Admin Post') : 'Seller');
                 const productTitle =
+                  o.productTitle ||
                   orderProduct?.data?.title ||
                   (o.isCart ? `${o.cartItems?.length || 0} Cart Items` : 'Order');
+
+                const copyOneField = async (val: string, label: string) => {
+                  if (!val) return;
+                  try {
+                    await navigator.clipboard.writeText(val);
+                    onNotify(lang === 'bn' ? `${label} কপি হয়েছে!` : `${label} copied!`, 'success');
+                  } catch {
+                    onNotify(lang === 'bn' ? 'কপি করা যায়নি।' : 'Copy failed.', 'error');
+                  }
+                };
+
+                const productSummaryText = resolvedItems
+                  .map(
+                    (it) =>
+                      `${it.title}${it.variantLabel ? ` [${it.variantLabel}]` : ''} × ${it.quantity} (৳${it.lineTotal})`
+                  )
+                  .join(' | ');
 
                 return (
                   <div
@@ -2983,35 +3395,226 @@ export const ControlCenterView: React.FC<ControlCenterViewProps> = ({
                       </div>
                     )}
 
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="text-xs font-semibold text-emerald-700 dark:text-amber-300 mb-0.5">
-                          {productTitle}
+                    {/* Top Ordered Product With Picture, Variant & Price */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-slate-100 dark:bg-[#071312] border border-slate-200 dark:border-emerald-900 overflow-hidden shrink-0 flex items-center justify-center">
+                          {primaryItem?.image ? (
+                            <img
+                              src={primaryItem.image}
+                              alt={productTitle}
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Package className="w-7 h-7 text-slate-400" />
+                          )}
                         </div>
-                        <div className="font-semibold text-sm">
-                          {o.name} · <span className="font-mono-num">{o.phone}</span>
-                        </div>
-                        <div className="text-xs text-slate-500 mt-0.5">
-                          {o.message || (lang === 'bn' ? 'ঠিকানা নেই' : 'No address')} · {o.paymentMethod}
-                          {o.trxId ? ` (TrxID: ${o.trxId})` : ''} · {formatDateShort(o.createdAt, lang)}
-                        </div>
-                        {o.appliedPromoCode && (
-                          <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 text-[11px] font-bold">
-                            <Tag className="w-3 h-3" />
-                            <span>
-                              Coupon: {o.appliedPromoCode}
-                              {o.promoDiscount ? ` (-${formatBDT(o.promoDiscount)})` : ''}
+
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] font-mono-num px-2 py-0.5 rounded bg-slate-100 dark:bg-emerald-950 text-slate-600 dark:text-slate-300 font-bold">
+                              #{o.orderId}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => copyOneField(o.orderId, 'Order ID')}
+                              className="p-1 rounded hover:bg-slate-100 dark:hover:bg-emerald-950 text-slate-400 hover:text-emerald-700"
+                              title="Copy Order ID"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                            <span className="text-[11px] text-slate-400">
+                              {formatDateShort(o.createdAt, lang)}
                             </span>
                           </div>
-                        )}
+
+                          <div className="text-sm font-bold text-emerald-800 dark:text-amber-300 leading-snug">
+                            {productTitle}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                            {o.selectedVariation?.label && (
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-amber-300 font-bold">
+                                {lang === 'bn' ? 'সাইজ/প্যাক:' : 'Variant:'} {o.selectedVariation.label}
+                              </span>
+                            )}
+                            {!o.isCart && (
+                              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-[#071312] font-mono-num font-semibold">
+                                × {o.quantity || 1}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                copyOneField(
+                                  productSummaryText,
+                                  lang === 'bn' ? 'প্রোডাক্ট ও সাইজ' : 'Product Info'
+                                )
+                              }
+                              className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-emerald-950/70 text-[11px] font-semibold inline-flex items-center gap-1 hover:bg-emerald-100 dark:hover:bg-emerald-900"
+                            >
+                              <Copy className="w-3 h-3" />
+                              <span>{lang === 'bn' ? 'প্রোডাক্ট কপি' : 'Copy Item'}</span>
+                            </button>
+                          </div>
+
+                          {o.appliedPromoCode && (
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 text-[11px] font-bold">
+                              <Tag className="w-3 h-3" />
+                              <span>
+                                Coupon: {o.appliedPromoCode}
+                                {o.promoDiscount ? ` (-${formatBDT(o.promoDiscount)})` : ''}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-display font-bold text-base text-emerald-800 dark:text-amber-400 font-mono-num">
+
+                      <div className="text-right shrink-0">
+                        <div className="font-display font-bold text-lg text-emerald-800 dark:text-amber-400 font-mono-num">
                           {formatBDT(o.totalPrice)}
                         </div>
-                        <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        <div
+                          className={`inline-block mt-0.5 px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                            o.status === 'Delivered'
+                              ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                              : o.status === 'Cancelled'
+                              ? 'bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300'
+                              : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
+                          }`}
+                        >
                           {o.status}
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Multi-item Cart Breakdown with Individual Thumbnails & Sizes */}
+                    {o.isCart && resolvedItems.length > 0 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-[#071312] border border-slate-200/80 dark:border-emerald-950">
+                        {resolvedItems.map((ci, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-2.5 p-2 rounded-lg bg-white dark:bg-[#0b1b19] border border-slate-200/70 dark:border-emerald-900"
+                          >
+                            <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 dark:bg-[#071312] shrink-0 flex items-center justify-center">
+                              {ci.image ? (
+                                <img
+                                  src={ci.image}
+                                  alt={ci.title}
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <Package className="w-4 h-4 text-slate-400" />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1 text-xs">
+                              <div className="font-semibold truncate">{ci.title}</div>
+                              <div className="text-[11px] text-slate-500">
+                                {ci.variantLabel ? `${ci.variantLabel} · ` : ''}
+                                <span className="font-mono-num">
+                                  ×{ci.quantity} · {formatBDT(ci.lineTotal)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Clean Customer, Address & Payment Card with Per-Field Copy Buttons */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 rounded-xl bg-slate-50 dark:bg-[#071312] border border-slate-200/80 dark:border-emerald-950 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate">
+                          <strong className="text-slate-500">
+                            {lang === 'bn' ? 'নাম:' : 'Name:'}
+                          </strong>{' '}
+                          <span className="font-semibold">{o.name}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => copyOneField(o.name, lang === 'bn' ? 'গ্রাহকের নাম' : 'Name')}
+                          className="p-1.5 rounded-lg bg-white dark:bg-[#0b1b19] border border-slate-200 dark:border-emerald-900 text-slate-500 hover:text-emerald-700 shrink-0"
+                          title="Copy Name"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono-num truncate">
+                          <strong className="text-slate-500">
+                            {lang === 'bn' ? 'ফোন:' : 'Phone:'}
+                          </strong>{' '}
+                          <span className="font-bold">{o.phone}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            copyOneField(o.phone, lang === 'bn' ? 'মোবাইল নাম্বার' : 'Phone')
+                          }
+                          className="p-1.5 rounded-lg bg-white dark:bg-[#0b1b19] border border-slate-200 dark:border-emerald-900 text-slate-500 hover:text-emerald-700 shrink-0"
+                          title="Copy Phone"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      {o.message && (
+                        <div className="sm:col-span-2 flex items-start justify-between gap-2 pt-1 border-t border-slate-200/60 dark:border-emerald-950">
+                          <span className="leading-relaxed">
+                            <strong className="text-slate-500">
+                              {lang === 'bn' ? 'ঠিকানা:' : 'Address:'}
+                            </strong>{' '}
+                            {o.message}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              copyOneField(o.message!, lang === 'bn' ? 'ঠিকানা' : 'Address')
+                            }
+                            className="p-1.5 rounded-lg bg-white dark:bg-[#0b1b19] border border-slate-200 dark:border-emerald-900 text-slate-500 hover:text-emerald-700 shrink-0"
+                            title="Copy Address"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200/60 dark:border-emerald-950">
+                        <span>
+                          <strong className="text-slate-500">
+                            {lang === 'bn' ? 'পেমেন্ট:' : 'Payment:'}
+                          </strong>{' '}
+                          <span className="font-semibold">
+                            {o.paymentMethod}
+                            {o.paymentProvider ? ` (${o.paymentProvider})` : ''}
+                          </span>
+                          {o.senderNumber ? ` · Sender: ${o.senderNumber}` : ''}
+                          {o.trxId ? ` · TrxID: ${o.trxId}` : ''}
+                          {o.deliveryArea
+                            ? ` · ${
+                                o.deliveryArea === 'dhaka'
+                                  ? lang === 'bn'
+                                    ? 'ঢাকার ভেতরে'
+                                    : 'Inside Dhaka'
+                                  : lang === 'bn'
+                                  ? 'ঢাকার বাহিরে'
+                                  : 'Outside Dhaka'
+                              }`
+                            : ''}
+                        </span>
+                        {o.trxId && (
+                          <button
+                            type="button"
+                            onClick={() => copyOneField(o.trxId!, 'TrxID')}
+                            className="px-2 py-1 rounded-lg bg-white dark:bg-[#0b1b19] border border-slate-200 dark:border-emerald-900 text-[11px] font-semibold inline-flex items-center gap-1"
+                          >
+                            <Copy className="w-3 h-3" />
+                            <span>TrxID</span>
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -3032,15 +3635,12 @@ export const ControlCenterView: React.FC<ControlCenterViewProps> = ({
                         </div>
                         <button
                           type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(o.offerTargetNumber!);
-                            onNotify(
-                              lang === 'bn'
-                                ? `অফার নাম্বার কপি হয়েছে: ${o.offerTargetNumber}`
-                                : `Copied offer number: ${o.offerTargetNumber}`,
-                              'success'
-                            );
-                          }}
+                          onClick={() =>
+                            copyOneField(
+                              o.offerTargetNumber!,
+                              lang === 'bn' ? 'অফার নাম্বার' : 'Offer number'
+                            )
+                          }
                           className="min-h-[40px] px-4 rounded-xl bg-sky-700 hover:bg-sky-800 dark:bg-amber-500 dark:hover:bg-amber-400 text-white dark:text-slate-950 text-xs font-bold inline-flex items-center gap-1.5 shrink-0"
                         >
                           <Copy className="w-4 h-4" />
@@ -3049,6 +3649,7 @@ export const ControlCenterView: React.FC<ControlCenterViewProps> = ({
                       </div>
                     )}
 
+                    {/* Action Toolbar: Status + Call + WhatsApp + Copy All + Demo Print + Delete */}
                     <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-emerald-950">
                       <select
                         value={o.status}
@@ -3078,15 +3679,24 @@ export const ControlCenterView: React.FC<ControlCenterViewProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(
-                            `Order: ${o.orderId}\nCustomer: ${o.name}\nPhone: ${o.phone}\nTotal: ৳${o.totalPrice}\nAddress: ${o.message || ''}`
-                          );
-                          onNotify(lang === 'bn' ? 'অর্ডার কপি হয়েছে!' : 'Order copied!', 'success');
-                        }}
-                        className="h-9 px-3 rounded-lg bg-slate-100 dark:bg-emerald-950/70 text-xs font-semibold inline-flex items-center gap-1"
+                        onClick={() =>
+                          copyOneField(
+                            buildOrderFullCopyText(o, houses, lang),
+                            lang === 'bn' ? 'সম্পূর্ণ অর্ডার ডিটেলস' : 'Full order details'
+                          )
+                        }
+                        className="h-9 px-3 rounded-lg bg-slate-100 dark:bg-emerald-950/70 text-xs font-bold inline-flex items-center gap-1.5"
                       >
                         <Copy className="w-3.5 h-3.5" />
+                        <span>{lang === 'bn' ? 'সব ডিটেলস কপি' : 'Copy All'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPrintingOrder(o)}
+                        className="h-9 px-3 rounded-lg bg-emerald-800 dark:bg-amber-500 text-white dark:text-slate-950 text-xs font-bold inline-flex items-center gap-1.5"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>{lang === 'bn' ? 'ডেমো প্রিন্ট / রসিদ' : 'Demo Print'}</span>
                       </button>
                       {(isAnySuperAdmin || isAdmin) && (
                         <button
@@ -3946,6 +4556,15 @@ export const ControlCenterView: React.FC<ControlCenterViewProps> = ({
           onNotify={onNotify}
         />
       )}
+
+      <OrderPrintModal
+        order={printingOrder}
+        houses={houses}
+        siteSettings={siteSettings}
+        lang={lang}
+        onClose={() => setPrintingOrder(null)}
+        onNotify={onNotify}
+      />
     </div>
   );
 };

@@ -437,12 +437,20 @@ export function getSafeImage(h?: HouseItem | null): string {
   if (imgs && imgs.length > 0 && imgs[0] && !imgs[0].includes('via.placeholder.com')) {
     return imgs[0];
   }
-  return '';
+  const varImg = (h?.data?.variations || []).find(
+    (v) => v?.image && !v.image.includes('via.placeholder.com')
+  )?.image;
+  return varImg || '';
 }
 
 export function getAllImages(h?: HouseItem | null): string[] {
-  const imgs = h?.data?.imageLinks || [];
-  return imgs.filter((u) => Boolean(u) && !u.includes('via.placeholder.com'));
+  const imgs = (h?.data?.imageLinks || []).filter(
+    (u) => Boolean(u) && !u.includes('via.placeholder.com')
+  );
+  const varImgs = (h?.data?.variations || [])
+    .map((v) => v?.image || '')
+    .filter((u) => Boolean(u) && !u.includes('via.placeholder.com'));
+  return Array.from(new Set([...imgs, ...varImgs]));
 }
 
 export function isFlashActive(h: HouseItem, now = Date.now()): boolean {
@@ -749,6 +757,18 @@ export function isDarkThemePreset(theme?: string | null): boolean {
 
 export function isDrivePackageCategory(cat?: string | null): boolean {
   return /(ড্রাইভ\s*প্যাকেজ|drive\s*pack)/i.test((cat || '').trim());
+}
+
+export function isClothingCategory(cat?: string | null): boolean {
+  return /(পোশাক|কাপড়|কাপড়|বস্ত্র|জামা|টি-শার্ট|টিশার্ট|হুডি|পাঞ্জাবি|শাড়ি|শাড়ি|থ্রি-পিস|ফ্যাশন|লুঙ্গি|গেঞ্জি|প্যান্ট|cloth|fashion|apparel|shirt|hoodie|pant|dress|garment|panjabi|saree|lungi|jacket)/i.test(
+    (cat || '').trim()
+  );
+}
+
+export function isLiquidWeightCategory(cat?: string | null): boolean {
+  return /(লিকুইড|তরল|তেল|ঘি|মধু|চাউল|চাল|ডাল|মাছ|মাংস|দুধ|পানি|ওজন|কেজি|গ্রাম|লিটার|মিলি|মশলা|liquid|oil|ghee|honey|grocery|weight|rice|milk|kg|gram|liter|ml)/i.test(
+    (cat || '').trim()
+  );
 }
 
 export function isVipSimProduct(h?: HouseItem | null): boolean {
