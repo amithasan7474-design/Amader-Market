@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import {execFileSync} from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import {defineConfig} from 'vite';
@@ -144,6 +145,26 @@ export default defineConfig(() => {
                 return;
               }
             }
+            if (urlPath === '/github-source.zip') {
+              try {
+                const zipBuf = execFileSync('git', ['archive', '--format=zip', 'HEAD'], {
+                  cwd: __dirname,
+                  maxBuffer: 50 * 1024 * 1024,
+                });
+                res.statusCode = 200;
+                res.setHeader('Content-Type', 'application/zip');
+                res.setHeader(
+                  'Content-Disposition',
+                  'attachment; filename="amader-market-github-source.zip"',
+                );
+                res.setHeader('Content-Length', String(zipBuf.length));
+                res.setHeader('Cache-Control', 'no-store');
+                res.end(zipBuf);
+                return;
+              } catch {
+                // fallback to next if git archive fails
+              }
+            }
             next();
           });
         },
@@ -168,6 +189,26 @@ export default defineConfig(() => {
                 res.setHeader('Cache-Control', 'no-store');
                 fs.createReadStream(apkPath).pipe(res);
                 return;
+              }
+            }
+            if (urlPath === '/github-source.zip') {
+              try {
+                const zipBuf = execFileSync('git', ['archive', '--format=zip', 'HEAD'], {
+                  cwd: __dirname,
+                  maxBuffer: 50 * 1024 * 1024,
+                });
+                res.statusCode = 200;
+                res.setHeader('Content-Type', 'application/zip');
+                res.setHeader(
+                  'Content-Disposition',
+                  'attachment; filename="amader-market-github-source.zip"',
+                );
+                res.setHeader('Content-Length', String(zipBuf.length));
+                res.setHeader('Cache-Control', 'no-store');
+                res.end(zipBuf);
+                return;
+              } catch {
+                // fallback to next if git archive fails
               }
             }
             next();
