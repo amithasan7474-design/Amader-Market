@@ -119,6 +119,61 @@ export default defineConfig(() => {
           }
         },
       },
+      {
+        name: 'serve-built-apk',
+        configureServer(server) {
+          server.middlewares.use((req, res, next) => {
+            const urlPath = (req.url || '').split('?')[0];
+            if (
+              urlPath === '/app-debug.apk' ||
+              urlPath === '/APK_DOWNLOAD/app-debug.apk' ||
+              urlPath === '/.build-outputs/app-debug.apk'
+            ) {
+              const apkPath = path.resolve(__dirname, 'APK_DOWNLOAD/app-debug.apk');
+              if (fs.existsSync(apkPath)) {
+                const stat = fs.statSync(apkPath);
+                res.statusCode = 200;
+                res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+                res.setHeader(
+                  'Content-Disposition',
+                  'attachment; filename="Amader-Market-v2.0.2-debug.apk"',
+                );
+                res.setHeader('Content-Length', String(stat.size));
+                res.setHeader('Cache-Control', 'no-store');
+                fs.createReadStream(apkPath).pipe(res);
+                return;
+              }
+            }
+            next();
+          });
+        },
+        configurePreviewServer(server) {
+          server.middlewares.use((req, res, next) => {
+            const urlPath = (req.url || '').split('?')[0];
+            if (
+              urlPath === '/app-debug.apk' ||
+              urlPath === '/APK_DOWNLOAD/app-debug.apk' ||
+              urlPath === '/.build-outputs/app-debug.apk'
+            ) {
+              const apkPath = path.resolve(__dirname, 'APK_DOWNLOAD/app-debug.apk');
+              if (fs.existsSync(apkPath)) {
+                const stat = fs.statSync(apkPath);
+                res.statusCode = 200;
+                res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+                res.setHeader(
+                  'Content-Disposition',
+                  'attachment; filename="Amader-Market-v2.0.2-debug.apk"',
+                );
+                res.setHeader('Content-Length', String(stat.size));
+                res.setHeader('Cache-Control', 'no-store');
+                fs.createReadStream(apkPath).pipe(res);
+                return;
+              }
+            }
+            next();
+          });
+        },
+      },
     ],
     resolve: {
       alias: {
